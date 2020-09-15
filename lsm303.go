@@ -266,9 +266,9 @@ func getMultiplier(mode AccelerometerMode, range_ AccelerometerRange) int64 {
 			return 114933938 >> 4
 		}
 	default:
-		log.Fatalf("Unknown mode %v in getLsb", mode)
+		log.Fatalf("Unknown mode %v in getMultiplier", mode)
 	}
-	log.Fatalf("Unknown range %v in getLsb", range_)
+	log.Fatalf("Unknown range %v in getMultiplier", range_)
 	return 0.0
 }
 

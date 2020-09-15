@@ -1,8 +1,8 @@
 package lsm303
 
 import (
-	"testing"
 	"periph.io/x/periph/conn/physic"
+	"testing"
 )
 
 func TestGetMultiplier(t *testing.T) {
@@ -23,7 +23,7 @@ func TestGetMultiplier(t *testing.T) {
 
 	for _, mode := range modes {
 		for _, range_ := range ranges {
-			expectedValue := int64(getLsb_(mode, range_, t) * float64(physic.EarthGravity)) >> getShift_(mode, t)
+			expectedValue := int64(getLsb_(mode, range_, t)*float64(physic.EarthGravity)) >> getShift_(mode, t)
 			computedValue := int64(getMultiplier(mode, range_))
 			if computedValue != expectedValue {
 				t.Errorf("getMultiplier(%s, %s) should be %v but was %v", mode, range_, expectedValue, computedValue)
@@ -36,7 +36,7 @@ func TestGetMultiplier(t *testing.T) {
 func getLsb_(mode AccelerometerMode, range_ AccelerometerRange, t *testing.T) float64 {
 	switch mode {
 	case ACCELEROMETER_MODE_LOW_POWER:
- 		switch range_ {
+		switch range_ {
 		case ACCELEROMETER_RANGE_2G:
 			return 0.01563
 		case ACCELEROMETER_RANGE_4G:
@@ -45,9 +45,9 @@ func getLsb_(mode AccelerometerMode, range_ AccelerometerRange, t *testing.T) fl
 			return 0.06252
 		case ACCELEROMETER_RANGE_16G:
 			return 0.18758
- 		}
+		}
 	case ACCELEROMETER_MODE_NORMAL:
- 		switch range_ {
+		switch range_ {
 		case ACCELEROMETER_RANGE_2G:
 			return 0.0039
 		case ACCELEROMETER_RANGE_4G:
@@ -56,10 +56,10 @@ func getLsb_(mode AccelerometerMode, range_ AccelerometerRange, t *testing.T) fl
 			return 0.01563
 		case ACCELEROMETER_RANGE_16G:
 			return 0.0469
- 		}
- 
+		}
+
 	case ACCELEROMETER_MODE_HIGH_RESOLUTION:
- 		switch range_ {
+		switch range_ {
 		case ACCELEROMETER_RANGE_2G:
 			return 0.00098
 		case ACCELEROMETER_RANGE_4G:
@@ -68,7 +68,7 @@ func getLsb_(mode AccelerometerMode, range_ AccelerometerRange, t *testing.T) fl
 			return 0.0039
 		case ACCELEROMETER_RANGE_16G:
 			return 0.01172
- 		}
+		}
 	}
 	t.Error("Bad range or mode in test")
 	return 0.0
@@ -88,4 +88,3 @@ func getShift_(mode AccelerometerMode, t *testing.T) uint8 {
 		return 0
 	}
 }
-
