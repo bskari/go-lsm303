@@ -95,11 +95,10 @@ func (accelerometer *Accelerometer) Sense() (physic.Force, physic.Force, physic.
 	yValue := (int16)((((uint16)(yHigh)) << 8) + (uint16)(yLow))
 	zValue := (int16)((((uint16)(zHigh)) << 8) + (uint16)(zLow))
 
-	shift := getShift(accelerometer.mode)
-	lsb := getLsb(accelerometer.mode, accelerometer.range_)
-	xAcceleration := (physic.Force)(xValue>>shift) * lsb
-	yAcceleration := (physic.Force)(yValue>>shift) * lsb
-	zAcceleration := (physic.Force)(zValue>>shift) * lsb
+	multiplier := getMultiplier(accelerometer.mode, accelerometer.range_)
+	xAcceleration := (physic.Force)(int64(xValue) * multiplier)
+	yAcceleration := (physic.Force)(int64(yValue) * multiplier)
+	zAcceleration := (physic.Force)(int64(zValue) * multiplier)
 
 	return xAcceleration, yAcceleration, zAcceleration
 }
@@ -227,60 +226,44 @@ func readBits(value uint32, bits uint32, shift uint8) uint32 {
 	return value & ((1 << bits) - 1)
 }
 
-// Gets the bit shift amount for the current mode
-func getShift(mode AccelerometerMode) uint8 {
-	switch mode {
-	case ACCELEROMETER_MODE_HIGH_RESOLUTION:
-		return 4
-	case ACCELEROMETER_MODE_NORMAL:
-		return 6
-	case ACCELEROMETER_MODE_LOW_POWER:
-		return 8
-	default:
-		log.Fatalf("Unknown mode %v in getShift", mode)
-		return 0
-	}
-}
-
-// Gets the Least Significant Bit value for the current mode
-func getLsb(mode AccelerometerMode, range_ AccelerometerRange) physic.Force {
-	// Some of the constants in here needed to be rounded so that
-	// they're exactly representable. I added comments where that
-	// happens with what the true value should be.
+// Gets the multiplier for the accelerometer mode and range
+func getMultiplier(mode AccelerometerMode, range_ AccelerometerRange) int64 {
+	// The constants in here needed to be rounded because some of then aren't
+	// exactly representable. I added tests for what the true value should be.
 	switch mode {
 	case ACCELEROMETER_MODE_LOW_POWER:
 		switch range_ {
 		case ACCELEROMETER_RANGE_2G:
-			return 153277939
+			return 153277939 >> 8
 		case ACCELEROMETER_RANGE_4G:
-			return 306555879
+			return 306555879 >> 8
 		case ACCELEROMETER_RANGE_8G:
-			return 613111758
+			return 613111758 >> 8
 		case ACCELEROMETER_RANGE_16G:
-			return 1839531407
+			return 1839531407 >> 8
 		}
 	case ACCELEROMETER_MODE_NORMAL:
 		switch range_ {
 		case ACCELEROMETER_RANGE_2G:
-			return 38245935
+			return 38245935 >> 6
 		case ACCELEROMETER_RANGE_4G:
-			return 76688003
+			return 76688003 >> 6
 		case ACCELEROMETER_RANGE_8G:
-			return 153277939
+			return 153277939 >> 6
 		case ACCELEROMETER_RANGE_16G:
-			return 459931885
+			return 459931885 >> 6
 		}
 
 	case ACCELEROMETER_MODE_HIGH_RESOLUTION:
 		switch range_ {
 		case ACCELEROMETER_RANGE_2G:
-			return 9610517
+			return 9610517 >> 4
 		case ACCELEROMETER_RANGE_4G:
-			return 19122967
+			return 19122967 >> 4
 		case ACCELEROMETER_RANGE_8G:
-			return 38245935
+			return 38245935 >> 4
 		case ACCELEROMETER_RANGE_16G:
-			return 114933938
+			return 114933938 >> 4
 		}
 	default:
 		log.Fatalf("Unknown mode %v in getLsb", mode)
