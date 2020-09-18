@@ -55,6 +55,9 @@ func NewAccelerometer(bus i2c.Bus, opts *Opts) (*Accelerometer, error) {
 		return nil, errors.New("No LSM303 detected")
 	}
 
+	device.SetRange(opts.Range)
+	device.SetMode(opts.Mode)
+
 	return device, nil
 }
 
