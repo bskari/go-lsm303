@@ -11,20 +11,19 @@ import (
 )
 
 // Opts holds the configuration options.
-type Opts struct {
+type AccelerometerOpts struct {
 	Range AccelerometerRange
 	Mode  AccelerometerMode
 }
 
-// DefaultOpts is the recommended default options.
-var DefaultOpts = Opts{
+// DefaultAccelerometerOpts is the recommended default options.
+var DefaultAccelerometerOpts = AccelerometerOpts{
 	Range: ACCELEROMETER_RANGE_4G,
 	Mode:  ACCELEROMETER_MODE_NORMAL,
 }
 
-// New accelerometer opens a handle to an nSM303 accelerometer sensor.
-func NewAccelerometer(bus i2c.Bus, opts *Opts) (*Accelerometer, error) {
-	const ACCELEROMETER_ADDRESS = 0x19
+// New accelerometer opens a handle to an LSM303 accelerometer sensor.
+func NewAccelerometer(bus i2c.Bus, opts *AccelerometerOpts) (*Accelerometer, error) {
 	device := &Accelerometer{
 		mmr: mmr.Dev8{
 			Conn: &i2c.Dev{Bus: bus, Addr: uint16(ACCELEROMETER_ADDRESS)},
@@ -61,7 +60,7 @@ func NewAccelerometer(bus i2c.Bus, opts *Opts) (*Accelerometer, error) {
 	return device, nil
 }
 
-// Dev is a handle to the LSM303 accelerometer sensor.
+// This is a handle to the LSM303 accelerometer sensor.
 type Accelerometer struct {
 	mmr    mmr.Dev8
 	range_ AccelerometerRange
@@ -124,7 +123,7 @@ func (accelerometer *Accelerometer) GetMode() (AccelerometerMode, error) {
 	}
 	highResolutionBit := readBits((uint32)(highResolutionU8), 1, 3)
 
-	return (AccelerometerMode)((lowPowerBit << 1) | highResolutionBit), nil
+	return AccelerometerMode((lowPowerBit << 1) | highResolutionBit), nil
 }
 
 func (accelerometer *Accelerometer) SetMode(mode AccelerometerMode) error {
@@ -175,7 +174,7 @@ func (accelerometer *Accelerometer) GetRange() (AccelerometerRange, error) {
 		return ACCELEROMETER_RANGE_4G, err
 	}
 	range_ := (((uint32)(value)) >> 4) & ((1 << 2) - 1)
-	return (AccelerometerRange)(range_), nil
+	return AccelerometerRange(range_), nil
 }
 
 func (accelerometer *Accelerometer) SetRange(range_ AccelerometerRange) error {
@@ -202,6 +201,10 @@ func (accelerometer *Accelerometer) SetRange(range_ AccelerometerRange) error {
 	accelerometer.range_ = range_
 
 	return nil
+}
+
+func (accelerometer *Accelerometer) String() string {
+	return "LSM303 accelerometer"
 }
 
 type AccelerometerMode int
@@ -280,6 +283,207 @@ func getMultiplier(mode AccelerometerMode, range_ AccelerometerRange) int64 {
 	return 0.0
 }
 
+// Opts holds the configuration options.
+type MagnetometerOpts struct {
+	Gain MagnetometerGain
+	Rate MagnetometerRate
+}
+
+// DefaultMagnetometerOpts is the recommended default options.
+var DefaultMagnetometerOpts = MagnetometerOpts{
+	Gain: MAGNETOMETER_GAIN_4_0,
+	Rate: MAGNETOMETER_RATE_30,
+}
+
+type MagnetometerGain int
+
+const (
+	MAGNETOMETER_GAIN_1_3 MagnetometerGain = iota
+	MAGNETOMETER_GAIN_1_9
+	MAGNETOMETER_GAIN_2_5
+	MAGNETOMETER_GAIN_4_0
+	MAGNETOMETER_GAIN_4_7
+	MAGNETOMETER_GAIN_5_6
+	MAGNETOMETER_GAIN_8_1
+)
+
+func (mode MagnetometerGain) String() string {
+	return [...]string{"1.3", "1.9", "2.5", "4.0", "4.7", "5.6", "8.1"}[mode]
+}
+
+type MagnetometerRate int
+
+const (
+	MAGNETOMETER_RATE_0_75 MagnetometerRate = iota
+	MAGNETOMETER_RATE_1_5
+	MAGNETOMETER_RATE_3_0
+	MAGNETOMETER_RATE_7_5
+	MAGNETOMETER_RATE_15
+	MAGNETOMETER_RATE_30
+	MAGNETOMETER_RATE_75
+	MAGNETOMETER_RATE_220
+)
+
+func (range_ MagnetometerRate) String() string {
+	return [...]string{"0.75", "1.55", "3.05", "7.55", "15", "30", "75", "220"}[range_]
+}
+
+// New magnetometer opens a handle to an LSM303 magnetometer sensor.
+func NewMagnetometer(bus i2c.Bus, opts *MagnetometerOpts) (*Magnetometer, error) {
+	device := &Magnetometer{
+		mmr: mmr.Dev8{
+			Conn: &i2c.Dev{Bus: bus, Addr: uint16(MAGNETOMETER_ADDRESS)},
+			// I don't think we ever access more than 1 byte at once, so
+			// this is irrelevant
+			Order: binary.BigEndian,
+		},
+		gain: opts.Gain,
+		rate: opts.Rate,
+	}
+
+	// Enable the magnetometer
+	err := device.mmr.WriteUint8(MAGNETOMETER_MR_REG_M, 0x00)
+	if err != nil {
+		return nil, err
+	}
+
+	// The magnetometer doesn't have an ID register, but this register should
+	// be constant
+	chipId, err := device.mmr.ReadUint8(MAGNETOMETER_IRA_REG_M)
+	if err != nil {
+		return nil, err
+	}
+	if chipId != 0b01001000 {
+		return nil, errors.New("No LSM303 detected")
+	}
+
+	device.SetGain(opts.Gain)
+	device.SetRate(opts.Rate)
+
+	return device, nil
+}
+
+// This is a handle to the LSM303 magnetometer sensor.
+type Magnetometer struct {
+	mmr  mmr.Dev8
+	rate MagnetometerRate
+	gain MagnetometerGain
+}
+
+func (magnetometer *Magnetometer) SenseRaw() (int16, int16, int16) {
+	xLow, err := magnetometer.mmr.ReadUint8(MAGNETOMETER_OUT_X_L_M)
+	if err != nil {
+		log.Fatal(err)
+	}
+	xHigh, err := magnetometer.mmr.ReadUint8(MAGNETOMETER_OUT_X_H_M)
+	if err != nil {
+		log.Fatal(err)
+	}
+	yLow, err := magnetometer.mmr.ReadUint8(MAGNETOMETER_OUT_Y_L_M)
+	if err != nil {
+		log.Fatal(err)
+	}
+	yHigh, err := magnetometer.mmr.ReadUint8(MAGNETOMETER_OUT_Y_H_M)
+	if err != nil {
+		log.Fatal(err)
+	}
+	zLow, err := magnetometer.mmr.ReadUint8(MAGNETOMETER_OUT_Z_L_M)
+	if err != nil {
+		log.Fatal(err)
+	}
+	zHigh, err := magnetometer.mmr.ReadUint8(MAGNETOMETER_OUT_Z_H_M)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	xValue := (int16)((((uint16)(xHigh)) << 8) + (uint16)(xLow))
+	yValue := (int16)((((uint16)(yHigh)) << 8) + (uint16)(yLow))
+	zValue := (int16)((((uint16)(zHigh)) << 8) + (uint16)(zLow))
+
+	return xValue, yValue, zValue
+}
+
+func (magnetometer *Magnetometer) SetRate(mode MagnetometerRate) error {
+	const bits = 3
+	const shift = 2
+
+	data := uint8(0)
+	// The only bit in here that matters is the bit 7, temperature
+	// enabled, so we could just track that instead of reading it back.
+	// For now, just assume it's 0.
+	previous := uint8(0)
+	/*
+		previous, err := magnetometer.mmr.ReadUint8(MAGNETOMETER_CRA_REG_M)
+		if err != nil {
+			return err
+		}
+	*/
+
+	mask := (uint8)((1 << bits) - 1)
+	data &= mask
+	mask <<= shift
+	previous &= (^mask)
+	previous |= data << shift
+	err := magnetometer.mmr.WriteUint8(MAGNETOMETER_CRA_REG_M, previous)
+	if err != nil {
+		return err
+	}
+	time.Sleep(time.Millisecond * 20)
+
+	return nil
+}
+
+func (magnetometer *Magnetometer) GetRate() (MagnetometerRate, error) {
+	value, err := magnetometer.mmr.ReadUint8(MAGNETOMETER_CRA_REG_M)
+	if err != nil {
+		return MAGNETOMETER_RATE_30, err
+	}
+	const bits = 3
+	const shift = 2
+	range_ := (((uint32)(value)) >> shift) & ((1 << bits) - 1)
+	return MagnetometerRate(range_), nil
+}
+
+func (magnetometer *Magnetometer) SetGain(gain MagnetometerGain) error {
+	const bits = 3
+	const shift = 5
+
+	data := (uint8)(gain)
+	currentGain, err := magnetometer.mmr.ReadUint8(MAGNETOMETER_CRB_REG_M)
+	if err != nil {
+		return err
+	}
+
+	mask := (uint8)((1 << bits) - 1)
+	data &= mask
+	mask <<= shift
+	currentGain &= (^mask)
+	currentGain |= data << shift
+	err = magnetometer.mmr.WriteUint8(MAGNETOMETER_CRB_REG_M, currentGain)
+	if err != nil {
+		return err
+	}
+	time.Sleep(time.Millisecond * 20)
+
+	magnetometer.gain = gain
+
+	return nil
+}
+
+func (magnetometer *Magnetometer) GetGain() (MagnetometerGain, error) {
+	value, err := magnetometer.mmr.ReadUint8(MAGNETOMETER_CRA_REG_M)
+	if err != nil {
+		return MAGNETOMETER_GAIN_4_0, err
+	}
+	const bits = 3
+	const shift = 5
+	gain := (((uint32)(value)) >> shift) & ((1 << bits) - 1)
+	return MagnetometerGain(gain), nil
+}
+
+const ACCELEROMETER_ADDRESS = 0x19
+const MAGNETOMETER_ADDRESS = 0x1E
+
 const (
 	// Copied from the data sheet. Unused values are commented out.
 	ACCELEROMETER_IDENTIFY    = 0x0F
@@ -313,4 +517,21 @@ const (
 	//ACCELEROMETER_TIME_LATENCY_A  = 0x3B
 	//ACCELEROMETER_TIME_LIMIT_A    = 0x3C
 	//ACCELEROMETER_TIME_WINDOW_A   = 0x3D
+)
+
+const (
+	// Copied from the data sheet. Unused values are commented out.
+	MAGNETOMETER_CRA_REG_M = 0x00
+	MAGNETOMETER_CRB_REG_M = 0x01
+	MAGNETOMETER_MR_REG_M  = 0x02
+	MAGNETOMETER_OUT_X_H_M = 0x03
+	MAGNETOMETER_OUT_X_L_M = 0x04
+	MAGNETOMETER_OUT_Z_H_M = 0x05
+	MAGNETOMETER_OUT_Z_L_M = 0x06
+	MAGNETOMETER_OUT_Y_H_M = 0x07
+	MAGNETOMETER_OUT_Y_L_M = 0x08
+	//MAGNETOMETER_SR_REG_M  = 0x09
+	MAGNETOMETER_IRA_REG_M = 0x0A
+	//MAGNETOMETER_IRB_REG_M = 0x0B
+	//MAGNETOMETER_IRC_REG_M = 0x0C
 )

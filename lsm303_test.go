@@ -1,7 +1,10 @@
 package lsm303
 
 import (
+	"encoding/binary"
+	"periph.io/x/periph/conn/i2c"
 	"periph.io/x/periph/conn/i2c/i2ctest"
+	"periph.io/x/periph/conn/mmr"
 	"periph.io/x/periph/conn/physic"
 	"testing"
 )
@@ -90,30 +93,120 @@ func getShift_(mode AccelerometerMode, t *testing.T) uint8 {
 	}
 }
 
-func TestLsm303Accelerometer(t *testing.T) {
-	const address uint16 = 0x19
+func TestNewAccelerometer(t *testing.T) {
 	scenario := &i2ctest.Playback{
-			Ops: []i2ctest.IO{
-				// Write the configuration, 100 Hz
-				{Addr: address, W: []byte{ACCELEROMETER_CTRL_REG1_A, 0x57}, R: []byte{}},
-				// Read the chipId
-				{Addr: address, W: []byte{ACCELEROMETER_IDENTIFY}, R: []byte{0x33}},
-				// Read range
-				{Addr: address, W: []byte{ACCELEROMETER_CTRL_REG4_A}, R: []byte{0}},
-				// Write new range
-				{Addr: address, W: []byte{ACCELEROMETER_CTRL_REG4_A, 0x10}, R: []byte{}},
-				// Read mode
-				{Addr: address, W: []byte{ACCELEROMETER_CTRL_REG1_A}, R: []byte{0}},
-				// Write new mode power
-				{Addr: address, W: []byte{ACCELEROMETER_CTRL_REG1_A, 0}, R: []byte{}},
-				// Read mode
-				{Addr: address, W: []byte{ACCELEROMETER_CTRL_REG4_A}, R: []byte{0}},
-				// Write new mode resolution
-				{Addr: address, W: []byte{ACCELEROMETER_CTRL_REG4_A, 0}, R: []byte{}},
-			},
-		}
-	_, err := NewAccelerometer(scenario, &DefaultOpts)
+		Ops: []i2ctest.IO{
+			// Write the configuration, 100 Hz
+			{Addr: ACCELEROMETER_ADDRESS, W: []byte{ACCELEROMETER_CTRL_REG1_A, 0x57}, R: []byte{}},
+			// Read the chipId
+			{Addr: ACCELEROMETER_ADDRESS, W: []byte{ACCELEROMETER_IDENTIFY}, R: []byte{0x33}},
+			// Read range
+			{Addr: ACCELEROMETER_ADDRESS, W: []byte{ACCELEROMETER_CTRL_REG4_A}, R: []byte{0}},
+			// Write new range
+			{Addr: ACCELEROMETER_ADDRESS, W: []byte{ACCELEROMETER_CTRL_REG4_A, 0x10}, R: []byte{}},
+			// Read mode
+			{Addr: ACCELEROMETER_ADDRESS, W: []byte{ACCELEROMETER_CTRL_REG1_A}, R: []byte{0}},
+			// Write new mode power
+			{Addr: ACCELEROMETER_ADDRESS, W: []byte{ACCELEROMETER_CTRL_REG1_A, 0}, R: []byte{}},
+			// Read mode
+			{Addr: ACCELEROMETER_ADDRESS, W: []byte{ACCELEROMETER_CTRL_REG4_A}, R: []byte{0}},
+			// Write new mode resolution
+			{Addr: ACCELEROMETER_ADDRESS, W: []byte{ACCELEROMETER_CTRL_REG4_A, 0}, R: []byte{}},
+		},
+	}
+	_, err := NewAccelerometer(scenario, &DefaultAccelerometerOpts)
 	if err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestAccelerometerSense(t *testing.T) {
+	scenario := &i2ctest.Playback{
+		Ops: []i2ctest.IO{
+			// Read registers
+			{Addr: ACCELEROMETER_ADDRESS, W: []byte{ACCELEROMETER_OUT_X_L_A}, R: []byte{0}},
+			{Addr: ACCELEROMETER_ADDRESS, W: []byte{ACCELEROMETER_OUT_X_H_A}, R: []byte{1}},
+			{Addr: ACCELEROMETER_ADDRESS, W: []byte{ACCELEROMETER_OUT_Y_L_A}, R: []byte{100}},
+			{Addr: ACCELEROMETER_ADDRESS, W: []byte{ACCELEROMETER_OUT_Y_H_A}, R: []byte{0}},
+			{Addr: ACCELEROMETER_ADDRESS, W: []byte{ACCELEROMETER_OUT_Z_L_A}, R: []byte{0xff}},
+			{Addr: ACCELEROMETER_ADDRESS, W: []byte{ACCELEROMETER_OUT_Z_H_A}, R: []byte{0xff}},
+		},
+	}
+
+	accelerometer := &Accelerometer{
+		mmr: mmr.Dev8{
+			Conn:  &i2c.Dev{Bus: scenario, Addr: uint16(ACCELEROMETER_ADDRESS)},
+			Order: binary.BigEndian,
+		},
+		range_: ACCELEROMETER_RANGE_4G,
+		mode:   ACCELEROMETER_MODE_NORMAL,
+	}
+
+	x, y, z := accelerometer.SenseRaw()
+
+	if x != 256 {
+		t.Fatal("Bad x")
+	}
+	if y != 100 {
+		t.Fatal("Bad y")
+	}
+	if z != -1 {
+		t.Fatal("Bad z")
+	}
+}
+
+func TestNewMagnetometer(t *testing.T) {
+	scenario := &i2ctest.Playback{
+		Ops: []i2ctest.IO{
+			// Enable the magnetometer
+			{Addr: MAGNETOMETER_ADDRESS, W: []byte{MAGNETOMETER_MR_REG_M, 0x0}, R: []byte{}},
+			// Read the chip ID (not a real ID, just a constant)
+			{Addr: MAGNETOMETER_ADDRESS, W: []byte{MAGNETOMETER_IRA_REG_M}, R: []byte{0b01001000}},
+			// Read gain
+			{Addr: MAGNETOMETER_ADDRESS, W: []byte{MAGNETOMETER_CRB_REG_M}, R: []byte{0}},
+			// Write new gain
+			{Addr: MAGNETOMETER_ADDRESS, W: []byte{MAGNETOMETER_CRB_REG_M, uint8(DefaultMagnetometerOpts.Gain << 5)}, R: []byte{}},
+			// Write new rate
+			{Addr: MAGNETOMETER_ADDRESS, W: []byte{MAGNETOMETER_CRA_REG_M, 0}, R: []byte{}},
+		},
+	}
+	_, err := NewMagnetometer(scenario, &DefaultMagnetometerOpts)
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestMagnetometerSense(t *testing.T) {
+	scenario := &i2ctest.Playback{
+		Ops: []i2ctest.IO{
+			// Read registers
+			{Addr: MAGNETOMETER_ADDRESS, W: []byte{MAGNETOMETER_OUT_X_L_M}, R: []byte{0}},
+			{Addr: MAGNETOMETER_ADDRESS, W: []byte{MAGNETOMETER_OUT_X_H_M}, R: []byte{1}},
+			{Addr: MAGNETOMETER_ADDRESS, W: []byte{MAGNETOMETER_OUT_Y_L_M}, R: []byte{100}},
+			{Addr: MAGNETOMETER_ADDRESS, W: []byte{MAGNETOMETER_OUT_Y_H_M}, R: []byte{0}},
+			{Addr: MAGNETOMETER_ADDRESS, W: []byte{MAGNETOMETER_OUT_Z_L_M}, R: []byte{0xff}},
+			{Addr: MAGNETOMETER_ADDRESS, W: []byte{MAGNETOMETER_OUT_Z_H_M}, R: []byte{0xff}},
+		},
+	}
+
+	magnetometer := &Magnetometer{
+		mmr: mmr.Dev8{
+			Conn:  &i2c.Dev{Bus: scenario, Addr: uint16(MAGNETOMETER_ADDRESS)},
+			Order: binary.BigEndian,
+		},
+		gain: MAGNETOMETER_GAIN_4_0,
+		rate: MAGNETOMETER_RATE_30,
+	}
+
+	x, y, z := magnetometer.SenseRaw()
+
+	if x != 256 {
+		t.Fatal("Bad x")
+	}
+	if y != 100 {
+		t.Fatal("Bad y")
+	}
+	if z != -1 {
+		t.Fatal("Bad z")
 	}
 }
