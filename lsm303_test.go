@@ -1,6 +1,7 @@
 package lsm303
 
 import (
+	"periph.io/x/periph/conn/i2c/i2ctest"
 	"periph.io/x/periph/conn/physic"
 	"testing"
 )
@@ -86,5 +87,33 @@ func getShift_(mode AccelerometerMode, t *testing.T) uint8 {
 	default:
 		t.Errorf("Bad mode in test")
 		return 0
+	}
+}
+
+func TestLsm303Accelerometer(t *testing.T) {
+	const address uint16 = 0x19
+	scenario := &i2ctest.Playback{
+			Ops: []i2ctest.IO{
+				// Write the configuration, 100 Hz
+				{Addr: address, W: []byte{ACCELEROMETER_CTRL_REG1_A, 0x57}, R: []byte{}},
+				// Read the chipId
+				{Addr: address, W: []byte{ACCELEROMETER_IDENTIFY}, R: []byte{0x33}},
+				// Read range
+				{Addr: address, W: []byte{ACCELEROMETER_CTRL_REG4_A}, R: []byte{0}},
+				// Write new range
+				{Addr: address, W: []byte{ACCELEROMETER_CTRL_REG4_A, 0x10}, R: []byte{}},
+				// Read mode
+				{Addr: address, W: []byte{ACCELEROMETER_CTRL_REG1_A}, R: []byte{0}},
+				// Write new mode power
+				{Addr: address, W: []byte{ACCELEROMETER_CTRL_REG1_A, 0}, R: []byte{}},
+				// Read mode
+				{Addr: address, W: []byte{ACCELEROMETER_CTRL_REG4_A}, R: []byte{0}},
+				// Write new mode resolution
+				{Addr: address, W: []byte{ACCELEROMETER_CTRL_REG4_A, 0}, R: []byte{}},
+			},
+		}
+	_, err := NewAccelerometer(scenario, &DefaultOpts)
+	if err != nil {
+		t.Fatal(err)
 	}
 }

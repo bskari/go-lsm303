@@ -68,7 +68,7 @@ type Accelerometer struct {
 	mode   AccelerometerMode
 }
 
-func (accelerometer *Accelerometer) Sense() (physic.Force, physic.Force, physic.Force) {
+func (accelerometer *Accelerometer) SenseRaw() (int16, int16, int16) {
 	xLow, err := accelerometer.mmr.ReadUint8(ACCELEROMETER_OUT_X_L_A)
 	if err != nil {
 		log.Fatal(err)
@@ -98,6 +98,11 @@ func (accelerometer *Accelerometer) Sense() (physic.Force, physic.Force, physic.
 	yValue := (int16)((((uint16)(yHigh)) << 8) + (uint16)(yLow))
 	zValue := (int16)((((uint16)(zHigh)) << 8) + (uint16)(zLow))
 
+	return xValue, yValue, zValue
+}
+
+func (accelerometer *Accelerometer) Sense() (physic.Force, physic.Force, physic.Force) {
+	xValue, yValue, zValue := accelerometer.SenseRaw()
 	multiplier := getMultiplier(accelerometer.mode, accelerometer.range_)
 	xAcceleration := (physic.Force)(int64(xValue) * multiplier)
 	yAcceleration := (physic.Force)(int64(yValue) * multiplier)
