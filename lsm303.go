@@ -484,7 +484,13 @@ func (magnetometer *Magnetometer) GetTemperature() (physic.Temperature, error) {
 	if err != nil {
 		return 0, err
 	}
-	degrees_eighths := ((int16(high) << 8) | int16(low)) >> 4
+
+	// The sensor reads temperatures calibrated from some offset. This
+	// offset isn't listed in the datasheet, but a few places online
+	// suggest that it's 20.
+	const offset = 20
+
+	degrees_eighths := ((int16(high)<<8)|int16(low))>>4 + offset*8
 	return physic.Temperature(int64(degrees_eighths)*int64(physic.Celsius)/8 + int64(physic.ZeroCelsius)), nil
 }
 

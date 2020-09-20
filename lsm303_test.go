@@ -204,7 +204,6 @@ func TestMagnetometerSense(t *testing.T) {
 		t.Fatal(err)
 	}
 
-
 	if x != 256 {
 		t.Fatal("Bad x")
 	}
@@ -241,7 +240,8 @@ func TestGetTemperature(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if temperature != physic.ZeroCelsius {
+	const offset = 20
+	if temperature != physic.ZeroCelsius+offset*physic.Celsius {
 		t.Fatal("Not 0 C")
 	}
 
@@ -249,7 +249,7 @@ func TestGetTemperature(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if temperature != physic.ZeroCelsius + physic.Celsius {
+	if temperature != physic.ZeroCelsius+physic.Celsius+offset*physic.Celsius {
 		t.Fatal("Not 1 C")
 	}
 
@@ -257,7 +257,7 @@ func TestGetTemperature(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if temperature != physic.ZeroCelsius - physic.Celsius {
+	if temperature != physic.ZeroCelsius-physic.Celsius+offset*physic.Celsius {
 		t.Fatal("Not -1 C")
 	}
 }
