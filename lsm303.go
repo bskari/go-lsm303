@@ -67,47 +67,50 @@ type Accelerometer struct {
 	mode   AccelerometerMode
 }
 
-func (accelerometer *Accelerometer) SenseRaw() (int16, int16, int16) {
+func (accelerometer *Accelerometer) SenseRaw() (int16, int16, int16, error) {
 	xLow, err := accelerometer.mmr.ReadUint8(ACCELEROMETER_OUT_X_L_A)
 	if err != nil {
-		log.Fatal(err)
+		return 0, 0, 0, err
 	}
 	xHigh, err := accelerometer.mmr.ReadUint8(ACCELEROMETER_OUT_X_H_A)
 	if err != nil {
-		log.Fatal(err)
+		return 0, 0, 0, err
 	}
 	yLow, err := accelerometer.mmr.ReadUint8(ACCELEROMETER_OUT_Y_L_A)
 	if err != nil {
-		log.Fatal(err)
+		return 0, 0, 0, err
 	}
 	yHigh, err := accelerometer.mmr.ReadUint8(ACCELEROMETER_OUT_Y_H_A)
 	if err != nil {
-		log.Fatal(err)
+		return 0, 0, 0, err
 	}
 	zLow, err := accelerometer.mmr.ReadUint8(ACCELEROMETER_OUT_Z_L_A)
 	if err != nil {
-		log.Fatal(err)
+		return 0, 0, 0, err
 	}
 	zHigh, err := accelerometer.mmr.ReadUint8(ACCELEROMETER_OUT_Z_H_A)
 	if err != nil {
-		log.Fatal(err)
+		return 0, 0, 0, err
 	}
 
-	xValue := (int16)((((uint16)(xHigh)) << 8) + (uint16)(xLow))
-	yValue := (int16)((((uint16)(yHigh)) << 8) + (uint16)(yLow))
-	zValue := (int16)((((uint16)(zHigh)) << 8) + (uint16)(zLow))
+	xValue := int16(((uint16(xHigh)) << 8) + uint16(xLow))
+	yValue := int16(((uint16(yHigh)) << 8) + uint16(yLow))
+	zValue := int16(((uint16(zHigh)) << 8) + uint16(zLow))
 
-	return xValue, yValue, zValue
+	return xValue, yValue, zValue, nil
 }
 
-func (accelerometer *Accelerometer) Sense() (physic.Force, physic.Force, physic.Force) {
-	xValue, yValue, zValue := accelerometer.SenseRaw()
+func (accelerometer *Accelerometer) Sense() (physic.Force, physic.Force, physic.Force, error) {
+	xValue, yValue, zValue, err := accelerometer.SenseRaw()
+	if err != nil {
+		return 0, 0, 0, err
+	}
 	multiplier := getMultiplier(accelerometer.mode, accelerometer.range_)
 	xAcceleration := (physic.Force)(int64(xValue) * multiplier)
 	yAcceleration := (physic.Force)(int64(yValue) * multiplier)
 	zAcceleration := (physic.Force)(int64(zValue) * multiplier)
 
-	return xAcceleration, yAcceleration, zAcceleration
+	return xAcceleration, yAcceleration, zAcceleration, nil
 }
 
 func (accelerometer *Accelerometer) GetMode() (AccelerometerMode, error) {
@@ -115,13 +118,13 @@ func (accelerometer *Accelerometer) GetMode() (AccelerometerMode, error) {
 	if err != nil {
 		return ACCELEROMETER_MODE_NORMAL, err
 	}
-	lowPowerBit := readBits((uint32)(lowPowerU8), 1, 3)
+	lowPowerBit := readBits(uint32(lowPowerU8), 1, 3)
 
 	highResolutionU8, err := accelerometer.mmr.ReadUint8(ACCELEROMETER_CTRL_REG4_A)
 	if err != nil {
 		return ACCELEROMETER_MODE_NORMAL, err
 	}
-	highResolutionBit := readBits((uint32)(highResolutionU8), 1, 3)
+	highResolutionBit := readBits(uint32(highResolutionU8), 1, 3)
 
 	return AccelerometerMode((lowPowerBit << 1) | highResolutionBit), nil
 }
@@ -130,13 +133,13 @@ func (accelerometer *Accelerometer) SetMode(mode AccelerometerMode) error {
 	const bits = 1
 	const shift = 3
 
-	data := (uint8)((mode & 0x02) >> 1)
+	data := uint8((mode & 0x02) >> 1)
 	power, err := accelerometer.mmr.ReadUint8(ACCELEROMETER_CTRL_REG1_A)
 	if err != nil {
 		return err
 	}
 
-	mask := (uint8)((1 << bits) - 1)
+	mask := uint8((1 << bits) - 1)
 	data &= mask
 	mask <<= shift
 	power &= (^mask)
@@ -147,12 +150,12 @@ func (accelerometer *Accelerometer) SetMode(mode AccelerometerMode) error {
 	}
 	time.Sleep(time.Millisecond * 20)
 
-	data = (uint8)(mode & 0x01)
+	data = uint8(mode & 0x01)
 	resolution, err := accelerometer.mmr.ReadUint8(ACCELEROMETER_CTRL_REG4_A)
 	if err != nil {
 		return err
 	}
-	mask = (uint8)((1 << bits) - 1)
+	mask = uint8((1 << bits) - 1)
 	data &= mask
 	mask <<= shift
 	resolution &= (^mask)
@@ -173,7 +176,7 @@ func (accelerometer *Accelerometer) GetRange() (AccelerometerRange, error) {
 	if err != nil {
 		return ACCELEROMETER_RANGE_4G, err
 	}
-	range_ := (((uint32)(value)) >> 4) & ((1 << 2) - 1)
+	range_ := ((uint32(value)) >> 4) & ((1 << 2) - 1)
 	return AccelerometerRange(range_), nil
 }
 
@@ -181,13 +184,13 @@ func (accelerometer *Accelerometer) SetRange(range_ AccelerometerRange) error {
 	const bits = 2
 	const shift = 4
 
-	data := (uint8)(range_)
+	data := uint8(range_)
 	currentRange, err := accelerometer.mmr.ReadUint8(ACCELEROMETER_CTRL_REG4_A)
 	if err != nil {
 		return err
 	}
 
-	mask := (uint8)((1 << bits) - 1)
+	mask := uint8((1 << bits) - 1)
 	data &= mask
 	mask <<= shift
 	currentRange &= (^mask)
@@ -390,9 +393,9 @@ func (magnetometer *Magnetometer) SenseRaw() (int16, int16, int16) {
 		log.Fatal(err)
 	}
 
-	xValue := (int16)((((uint16)(xHigh)) << 8) + (uint16)(xLow))
-	yValue := (int16)((((uint16)(yHigh)) << 8) + (uint16)(yLow))
-	zValue := (int16)((((uint16)(zHigh)) << 8) + (uint16)(zLow))
+	xValue := int16(((uint16(xHigh)) << 8) + uint16(xLow))
+	yValue := int16(((uint16(yHigh)) << 8) + uint16(yLow))
+	zValue := int16(((uint16(zHigh)) << 8) + uint16(zLow))
 
 	return xValue, yValue, zValue
 }
@@ -405,7 +408,7 @@ func (magnetometer *Magnetometer) SetRate(mode MagnetometerRate) error {
 	// enabled, so just always set it to 1
 	previous := uint8(0)
 	data := uint8(mode)
-	mask := (uint8)((1 << bits) - 1)
+	mask := uint8((1 << bits) - 1)
 	data &= mask
 	mask <<= shift
 	previous &= (^mask)
@@ -429,7 +432,7 @@ func (magnetometer *Magnetometer) GetRate() (MagnetometerRate, error) {
 	}
 	const bits = 3
 	const shift = 2
-	range_ := (((uint32)(value)) >> shift) & ((1 << bits) - 1)
+	range_ := ((uint32(value)) >> shift) & ((1 << bits) - 1)
 	return MagnetometerRate(range_), nil
 }
 
@@ -437,13 +440,13 @@ func (magnetometer *Magnetometer) SetGain(gain MagnetometerGain) error {
 	const bits = 3
 	const shift = 5
 
-	data := (uint8)(gain)
+	data := uint8(gain)
 	currentGain, err := magnetometer.mmr.ReadUint8(MAGNETOMETER_CRB_REG_M)
 	if err != nil {
 		return err
 	}
 
-	mask := (uint8)((1 << bits) - 1)
+	mask := uint8((1 << bits) - 1)
 	data &= mask
 	mask <<= shift
 	currentGain &= (^mask)
@@ -466,7 +469,7 @@ func (magnetometer *Magnetometer) GetGain() (MagnetometerGain, error) {
 	}
 	const bits = 3
 	const shift = 5
-	gain := (((uint32)(value)) >> shift) & ((1 << bits) - 1)
+	gain := ((uint32(value)) >> shift) & ((1 << bits) - 1)
 	return MagnetometerGain(gain), nil
 }
 
