@@ -142,7 +142,10 @@ func TestAccelerometerSense(t *testing.T) {
 		mode:   ACCELEROMETER_MODE_NORMAL,
 	}
 
-	x, y, z := accelerometer.SenseRaw()
+	x, y, z, err := accelerometer.SenseRaw()
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	if x != 256 {
 		t.Fatal("Bad x")
@@ -196,7 +199,11 @@ func TestMagnetometerSense(t *testing.T) {
 		rate: MAGNETOMETER_RATE_30,
 	}
 
-	x, y, z := magnetometer.SenseRaw()
+	x, y, z, err := magnetometer.SenseRaw()
+	if err != nil {
+		t.Fatal(err)
+	}
+
 
 	if x != 256 {
 		t.Fatal("Bad x")
@@ -206,5 +213,51 @@ func TestMagnetometerSense(t *testing.T) {
 	}
 	if z != -1 {
 		t.Fatal("Bad z")
+	}
+}
+
+func TestGetTemperature(t *testing.T) {
+	scenario := &i2ctest.Playback{
+		Ops: []i2ctest.IO{
+			{Addr: MAGNETOMETER_ADDRESS, W: []byte{MAGNETOMETER_TEMP_OUT_H_M}, R: []byte{0}},
+			{Addr: MAGNETOMETER_ADDRESS, W: []byte{MAGNETOMETER_TEMP_OUT_L_M}, R: []byte{0}},
+			{Addr: MAGNETOMETER_ADDRESS, W: []byte{MAGNETOMETER_TEMP_OUT_H_M}, R: []byte{0}},
+			{Addr: MAGNETOMETER_ADDRESS, W: []byte{MAGNETOMETER_TEMP_OUT_L_M}, R: []byte{0b10000000}},
+			{Addr: MAGNETOMETER_ADDRESS, W: []byte{MAGNETOMETER_TEMP_OUT_H_M}, R: []byte{0b11111111}},
+			{Addr: MAGNETOMETER_ADDRESS, W: []byte{MAGNETOMETER_TEMP_OUT_L_M}, R: []byte{0b10000000}},
+		},
+	}
+
+	magnetometer := &Magnetometer{
+		mmr: mmr.Dev8{
+			Conn:  &i2c.Dev{Bus: scenario, Addr: uint16(MAGNETOMETER_ADDRESS)},
+			Order: binary.BigEndian,
+		},
+		gain: MAGNETOMETER_GAIN_4_0,
+		rate: MAGNETOMETER_RATE_30,
+	}
+
+	temperature, err := magnetometer.GetTemperature()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if temperature != physic.ZeroCelsius {
+		t.Fatal("Not 0 C")
+	}
+
+	temperature, err = magnetometer.GetTemperature()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if temperature != physic.ZeroCelsius + physic.Celsius {
+		t.Fatal("Not 1 C")
+	}
+
+	temperature, err = magnetometer.GetTemperature()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if temperature != physic.ZeroCelsius - physic.Celsius {
+		t.Fatal("Not -1 C")
 	}
 }

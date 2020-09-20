@@ -367,37 +367,37 @@ type Magnetometer struct {
 	gain MagnetometerGain
 }
 
-func (magnetometer *Magnetometer) SenseRaw() (int16, int16, int16) {
+func (magnetometer *Magnetometer) SenseRaw() (int16, int16, int16, error) {
 	xLow, err := magnetometer.mmr.ReadUint8(MAGNETOMETER_OUT_X_L_M)
 	if err != nil {
-		log.Fatal(err)
+		return 0, 0, 0, err
 	}
 	xHigh, err := magnetometer.mmr.ReadUint8(MAGNETOMETER_OUT_X_H_M)
 	if err != nil {
-		log.Fatal(err)
+		return 0, 0, 0, err
 	}
 	yLow, err := magnetometer.mmr.ReadUint8(MAGNETOMETER_OUT_Y_L_M)
 	if err != nil {
-		log.Fatal(err)
+		return 0, 0, 0, err
 	}
 	yHigh, err := magnetometer.mmr.ReadUint8(MAGNETOMETER_OUT_Y_H_M)
 	if err != nil {
-		log.Fatal(err)
+		return 0, 0, 0, err
 	}
 	zLow, err := magnetometer.mmr.ReadUint8(MAGNETOMETER_OUT_Z_L_M)
 	if err != nil {
-		log.Fatal(err)
+		return 0, 0, 0, err
 	}
 	zHigh, err := magnetometer.mmr.ReadUint8(MAGNETOMETER_OUT_Z_H_M)
 	if err != nil {
-		log.Fatal(err)
+		return 0, 0, 0, err
 	}
 
 	xValue := int16(((uint16(xHigh)) << 8) + uint16(xLow))
 	yValue := int16(((uint16(yHigh)) << 8) + uint16(yLow))
 	zValue := int16(((uint16(zHigh)) << 8) + uint16(zLow))
 
-	return xValue, yValue, zValue
+	return xValue, yValue, zValue, nil
 }
 
 func (magnetometer *Magnetometer) SetRate(mode MagnetometerRate) error {
@@ -485,7 +485,7 @@ func (magnetometer *Magnetometer) GetTemperature() (physic.Temperature, error) {
 		return 0, err
 	}
 	degrees_eighths := ((int16(high) << 8) | int16(low)) >> 4
-	return physic.Temperature(int64(degrees_eighths)*8*int64(physic.Celsius) + int64(physic.ZeroCelsius)), nil
+	return physic.Temperature(int64(degrees_eighths)*int64(physic.Celsius)/8 + int64(physic.ZeroCelsius)), nil
 }
 
 const ACCELEROMETER_ADDRESS = 0x19
