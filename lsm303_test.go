@@ -158,16 +158,14 @@ func TestAccelerometerSense(t *testing.T) {
 func TestNewMagnetometer(t *testing.T) {
 	scenario := &i2ctest.Playback{
 		Ops: []i2ctest.IO{
-			// Enable the magnetometer
-			{Addr: MAGNETOMETER_ADDRESS, W: []byte{MAGNETOMETER_MR_REG_M, 0x0}, R: []byte{}},
 			// Read the chip ID (not a real ID, just a constant)
 			{Addr: MAGNETOMETER_ADDRESS, W: []byte{MAGNETOMETER_IRA_REG_M}, R: []byte{0b01001000}},
 			// Read gain
 			{Addr: MAGNETOMETER_ADDRESS, W: []byte{MAGNETOMETER_CRB_REG_M}, R: []byte{0}},
 			// Write new gain
-			{Addr: MAGNETOMETER_ADDRESS, W: []byte{MAGNETOMETER_CRB_REG_M, uint8(DefaultMagnetometerOpts.Gain << 5)}, R: []byte{}},
+			{Addr: MAGNETOMETER_ADDRESS, W: []byte{MAGNETOMETER_CRB_REG_M, uint8(DefaultMagnetometerOpts.Gain) << 5}, R: []byte{}},
 			// Write new rate
-			{Addr: MAGNETOMETER_ADDRESS, W: []byte{MAGNETOMETER_CRA_REG_M, 0}, R: []byte{}},
+			{Addr: MAGNETOMETER_ADDRESS, W: []byte{MAGNETOMETER_CRA_REG_M, (uint8(DefaultMagnetometerOpts.Rate) << 2) | 0b10000000}, R: []byte{}},
 		},
 	}
 	_, err := NewMagnetometer(scenario, &DefaultMagnetometerOpts)

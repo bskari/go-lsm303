@@ -341,12 +341,6 @@ func NewMagnetometer(bus i2c.Bus, opts *MagnetometerOpts) (*Magnetometer, error)
 		rate: opts.Rate,
 	}
 
-	// Enable the magnetometer
-	err := device.mmr.WriteUint8(MAGNETOMETER_MR_REG_M, 0x00)
-	if err != nil {
-		return nil, err
-	}
-
 	// The magnetometer doesn't have an ID register, but this register should
 	// be constant
 	chipId, err := device.mmr.ReadUint8(MAGNETOMETER_IRA_REG_M)
@@ -407,23 +401,18 @@ func (magnetometer *Magnetometer) SetRate(mode MagnetometerRate) error {
 	const bits = 3
 	const shift = 2
 
-	data := uint8(0)
 	// The only bit in here that matters is the bit 7, temperature
-	// enabled, so we could just track that instead of reading it back.
-	// For now, just assume it's 0.
+	// enabled, so just always set it to 1
 	previous := uint8(0)
-	/*
-		previous, err := magnetometer.mmr.ReadUint8(MAGNETOMETER_CRA_REG_M)
-		if err != nil {
-			return err
-		}
-	*/
-
+	data := uint8(mode)
 	mask := (uint8)((1 << bits) - 1)
 	data &= mask
 	mask <<= shift
 	previous &= (^mask)
 	previous |= data << shift
+	// Enable temperature
+	previous |= 0b10000000
+
 	err := magnetometer.mmr.WriteUint8(MAGNETOMETER_CRA_REG_M, previous)
 	if err != nil {
 		return err
@@ -481,6 +470,21 @@ func (magnetometer *Magnetometer) GetGain() (MagnetometerGain, error) {
 	return MagnetometerGain(gain), nil
 }
 
+// The temperature sensor is technically on the same line as the
+// magnetometer, so that's why I'm putting it there
+func (magnetometer *Magnetometer) GetTemperature() (physic.Temperature, error) {
+	high, err := magnetometer.mmr.ReadUint8(MAGNETOMETER_TEMP_OUT_H_M)
+	if err != nil {
+		return 0, err
+	}
+	low, err := magnetometer.mmr.ReadUint8(MAGNETOMETER_TEMP_OUT_L_M)
+	if err != nil {
+		return 0, err
+	}
+	degrees_eighths := ((int16(high) << 8) | int16(low)) >> 4
+	return physic.Temperature(int64(degrees_eighths)*8*int64(physic.Celsius) + int64(physic.ZeroCelsius)), nil
+}
+
 const ACCELEROMETER_ADDRESS = 0x19
 const MAGNETOMETER_ADDRESS = 0x1E
 
@@ -534,4 +538,6 @@ const (
 	MAGNETOMETER_IRA_REG_M = 0x0A
 	//MAGNETOMETER_IRB_REG_M = 0x0B
 	//MAGNETOMETER_IRC_REG_M = 0x0C
+	MAGNETOMETER_TEMP_OUT_H_M = 0x31
+	MAGNETOMETER_TEMP_OUT_L_M = 0x32
 )
