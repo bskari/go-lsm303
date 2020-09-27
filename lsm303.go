@@ -344,6 +344,11 @@ func NewMagnetometer(bus i2c.Bus, opts *MagnetometerOpts) (*Magnetometer, error)
 		rate: opts.Rate,
 	}
 
+	// Enable the magnetometer
+	err := device.mmr.WriteUint8(MAGNETOMETER_MR_REG_M, 0x00)
+	if err != nil {
+		return nil, err
+	}
 	// The magnetometer doesn't have an ID register, but this register should
 	// be constant
 	chipId, err := device.mmr.ReadUint8(MAGNETOMETER_IRA_REG_M)
