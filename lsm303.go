@@ -478,9 +478,20 @@ func (magnetometer *Magnetometer) GetGain() (MagnetometerGain, error) {
 	return MagnetometerGain(gain), nil
 }
 
-// The temperature sensor is technically on the same line as the
-// magnetometer, so that's why I'm putting it there
-func (magnetometer *Magnetometer) GetTemperature() (physic.Temperature, error) {
+// The temperature sensor is technically on the same line as the magnetometer,
+// so that's why I'm putting as a Magnetometer method. Note that the sensor is
+// uncalibrated, so it can't return an absolute temperature, but from what I've
+// read online, adding about 20 degrees C should get you close.
+func (magnetometer *Magnetometer) SenseRelativeTemperature() (physic.Temperature, error) {
+	degrees_eighths, err := magnetometer.senseRelativeTemperatureRaw()
+	if err != nil {
+		return 0, err
+	}
+	return physic.Temperature(int64(degrees_eighths)*int64(physic.Celsius)/8 + int64(physic.ZeroCelsius)), nil
+}
+
+// Returns the relative temperature in eights of a degree
+func (magnetometer *Magnetometer) senseRelativeTemperatureRaw() (int16, error) {
 	high, err := magnetometer.mmr.ReadUint8(MAGNETOMETER_TEMP_OUT_H_M)
 	if err != nil {
 		return 0, err
@@ -490,13 +501,8 @@ func (magnetometer *Magnetometer) GetTemperature() (physic.Temperature, error) {
 		return 0, err
 	}
 
-	// The sensor reads temperatures calibrated from some offset. This
-	// offset isn't listed in the datasheet, but a few places online
-	// suggest that it's 20.
-	const offset = 20
-
-	degrees_eighths := ((int16(high)<<8)|int16(low))>>4 + offset*8
-	return physic.Temperature(int64(degrees_eighths)*int64(physic.Celsius)/8 + int64(physic.ZeroCelsius)), nil
+	degreesEighths := ((int16(high) << 8) | int16(uint16(low))) >> 4
+	return degreesEighths, nil
 }
 
 const ACCELEROMETER_ADDRESS = 0x19
